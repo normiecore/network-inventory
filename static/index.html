@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MCE Network Inventory</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #181b22;
+      --border: #262a33;
+      --text: #e6e8ec;
+      --muted: #8b93a3;
+      --accent: #4f8cff;
+      --online: #2ecc71;
+      --offline: #6c7480;
+      --new: #f5a623;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+    header .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .stat .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+    .stat .value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+    .controls input, .controls select {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    .controls input[type="search"] { min-width: 240px; }
+    button {
+      background: var(--accent);
+      color: white;
+      border: 0;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: default; }
+    button.secondary {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    th {
+      background: #1f232c;
+      color: var(--muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: .5px;
+    }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: #1d212a; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+    .badge.online  { background: rgba(46, 204, 113, .15); color: var(--online); }
+    .badge.offline { background: rgba(108, 116, 128, .2); color: var(--offline); }
+    .badge.new     { background: rgba(245, 166, 35, .15); color: var(--new); }
+
+    .muted { color: var(--muted); }
+    .empty { padding: 24px; text-align: center; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>MCE Network Inventory</h1>
+      <div class="sub" id="lastScan">loading…</div>
+    </div>
+    <div>
+      <button id="scanBtn">Scan now</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="stats" id="stats"></section>
+
+    <div class="controls">
+      <input type="search" id="search" placeholder="Search hostname, IP, or MAC…" />
+      <select id="statusFilter">
+        <option value="">All statuses</option>
+        <option value="online">Online</option>
+        <option value="offline">Offline</option>
+        <option value="new">New</option>
+      </select>
+      <select id="vendorFilter">
+        <option value="">All vendors</option>
+      </select>
+      <button class="secondary" id="refreshBtn">Refresh</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Hostname</th>
+          <th>IP</th>
+          <th>MAC</th>
+          <th>Vendor</th>
+          <th>First seen</th>
+          <th>Last seen</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="7" class="empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </main>
+
+<script>
+  const state = {
+    devices: [],
+    search: "",
+    status: "",
+    vendor: "",
+  };
+
+  const fmtTime = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d)) return iso;
+    // Compact "2 hours ago" style next to an absolute timestamp.
+    const diff = (Date.now() - d.getTime()) / 1000;
+    let rel;
+    if (diff < 60) rel = "just now";
+    else if (diff < 3600) rel = Math.floor(diff / 60) + "m ago";
+    else if (diff < 86400) rel = Math.floor(diff / 3600) + "h ago";
+    else rel = Math.floor(diff / 86400) + "d ago";
+    return `${d.toLocaleString()} (${rel})`;
+  };
+
+  async function loadDevices() {
+    const r = await fetch("/api/devices");
+    state.devices = await r.json();
+    // Populate vendor filter.
+    const vendors = Array.from(
+      new Set(state.devices.map(d => d.vendor).filter(Boolean))
+    ).sort();
+    const sel = document.getElementById("vendorFilter");
+    const current = sel.value;
+    sel.innerHTML = '<option value="">All vendors</option>'
+      + vendors.map(v => `<option>${escape(v)}</option>`).join("");
+    sel.value = current;
+    render();
+  }
+
+  async function loadStats() {
+    const r = await fetch("/api/stats");
+    const s = await r.json();
+    const el = document.getElementById("stats");
+    el.innerHTML = [
+      stat("Total devices", s.total),
+      stat("Online", s.online),
+      stat("New (last 24h)", s.new_last_24h),
+      stat("Unknown vendor", s.unknown_vendor),
+    ].join("");
+    const last = s.last_scan_completed || s.last_scan_started;
+    document.getElementById("lastScan").textContent = last
+      ? `Last scan: ${fmtTime(last)} — ${s.last_scan_found ?? 0} hosts`
+      : "No scans yet";
+  }
+
+  function stat(label, value) {
+    return `<div class="stat"><div class="label">${label}</div>
+            <div class="value">${value}</div></div>`;
+  }
+
+  function render() {
+    const q = state.search.toLowerCase();
+    const rows = state.devices.filter(d => {
+      if (state.status && d.status !== state.status) return false;
+      if (state.vendor && d.vendor !== state.vendor) return false;
+      if (q) {
+        const hay = [d.hostname, d.ip, d.mac].filter(Boolean).join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const tbody = document.getElementById("tbody");
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">No devices match.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(d => `
+      <tr>
+        <td><span class="badge ${d.status}">${d.status}</span></td>
+        <td>${escape(d.hostname) || '<span class="muted">—</span>'}</td>
+        <td>${escape(d.ip)}</td>
+        <td><code>${escape(d.mac)}</code></td>
+        <td>${escape(d.vendor) || '<span class="muted">unknown</span>'}</td>
+        <td class="muted">${fmtTime(d.first_seen)}</td>
+        <td class="muted">${fmtTime(d.last_seen)}</td>
+      </tr>
+    `).join("");
+  }
+
+  function escape(s) {
+    if (s == null) return "";
+    return String(s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+  }
+
+  document.getElementById("search").addEventListener("input", e => {
+    state.search = e.target.value; render();
+  });
+  document.getElementById("statusFilter").addEventListener("change", e => {
+    state.status = e.target.value; render();
+  });
+  document.getElementById("vendorFilter").addEventListener("change", e => {
+    state.vendor = e.target.value; render();
+  });
+  document.getElementById("refreshBtn").addEventListener("click", refreshAll);
+
+  document.getElementById("scanBtn").addEventListener("click", async (ev) => {
+    const btn = ev.target;
+    btn.disabled = true;
+    btn.textContent = "Scanning…";
+    try {
+      await fetch("/api/scan", { method: "POST" });
+      // Give the backend a moment, then poll a few times to pick up the
+      // new data as soon as the sweep completes.
+      for (let i = 0; i < 8; i++) {
+        await new Promise(r => setTimeout(r, 1500));
+        await refreshAll();
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Scan now";
+    }
+  });
+
+  async function refreshAll() {
+    await Promise.all([loadDevices(), loadStats()]);
+  }
+
+  refreshAll();
+  // Light auto-refresh so the dashboard stays current.
+  setInterval(refreshAll, 30_000);
+</script>
+</body>
+</html>
