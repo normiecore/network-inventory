@@ -32,6 +32,11 @@ pub struct Cli {
     #[arg(long)]
     pub subnet: Option<Ipv4Net>,
 
+    /// Web UI bind address. Defaults to 127.0.0.1 (localhost only).
+    /// Set to 0.0.0.0 to expose on all interfaces (e.g. for a preview proxy).
+    #[arg(long)]
+    pub host: Option<std::net::IpAddr>,
+
     /// Web UI port.
     #[arg(long)]
     pub port: Option<u16>,
@@ -49,6 +54,7 @@ pub struct Cli {
 #[derive(Deserialize, Debug, Default)]
 struct FileConfig {
     subnet: Option<Ipv4Net>,
+    host: Option<std::net::IpAddr>,
     port: Option<u16>,
     interval: Option<u64>,
     db_path: Option<PathBuf>,
@@ -58,6 +64,7 @@ struct FileConfig {
 #[derive(Debug, Clone)]
 pub struct Config {
     pub subnet: Ipv4Net,
+    pub host: std::net::IpAddr,
     pub port: u16,
     pub interval_minutes: u64,
     pub db_path: PathBuf,
@@ -86,6 +93,10 @@ impl Config {
             .subnet
             .or(file_cfg.subnet)
             .unwrap_or_else(|| "192.168.1.0/24".parse().expect("valid default subnet"));
+        let host = cli
+            .host
+            .or(file_cfg.host)
+            .unwrap_or_else(|| std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)));
         let port = cli.port.or(file_cfg.port).unwrap_or(3000);
         let interval_minutes = cli.interval.or(file_cfg.interval).unwrap_or(10);
         let db_path = cli
@@ -95,6 +106,7 @@ impl Config {
 
         Ok(Self {
             subnet,
+            host,
             port,
             interval_minutes,
             db_path,

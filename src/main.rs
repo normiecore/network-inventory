@@ -40,8 +40,9 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     let cfg = Config::load(cli).context("loading config")?;
     tracing::info!(
-        "starting mce-inventory: subnet={} port={} interval={}min db={}",
+        "starting mce-inventory: subnet={} bind={}:{} interval={}min db={}",
         cfg.subnet,
+        cfg.host,
         cfg.port,
         cfg.interval_minutes,
         cfg.db_path.display()
@@ -88,7 +89,7 @@ async fn main() -> Result<()> {
         scan_trigger: scan_trigger.clone(),
     };
     let app = web::router(state);
-    let addr = SocketAddr::from(([127, 0, 0, 1], cfg.port));
+    let addr = SocketAddr::new(cfg.host, cfg.port);
     tracing::info!("listening on http://{addr}");
     let listener = TcpListener::bind(addr)
         .await
