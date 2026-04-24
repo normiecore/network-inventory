@@ -1,0 +1,10 @@
+/target
+/inventory.db
+/inventory.db-journal
+/inventory.db-wal
+/inventory.db-shm
+/oui.csv
+/config.toml
+*.log
+.vscode/
+.idea/

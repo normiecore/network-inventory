@@ -1,0 +1,14 @@
+# Copy this to `config.toml` and tweak. Any value can also be passed on the
+# command line (flags take precedence over the file).
+
+# CIDR range to sweep.
+subnet = "192.168.1.0/24"
+
+# Web UI port (binds to 127.0.0.1 only).
+port = 3000
+
+# Scan interval in minutes.
+interval = 10
+
+# SQLite database path. The OUI vendor cache (oui.csv) is stored alongside it.
+db_path = "./inventory.db"

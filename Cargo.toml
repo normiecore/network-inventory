@@ -1,0 +1,62 @@
+[package]
+name = "mce-inventory"
+version = "0.1.0"
+edition = "2021"
+description = "MCE Network Inventory — ARP-sweep LAN scanner with a web UI"
+license = "MIT"
+default-run = "mce-inventory"
+
+[[bin]]
+name = "mce-inventory"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Web server
+axum = "0.7"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace"] }
+
+# Database
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "sqlite",
+    "chrono",
+    "macros",
+] }
+
+# Networking / ARP
+pnet = "0.35"
+dns-lookup = "2"
+ipnet = { version = "2", features = ["serde"] }
+
+# HTTP client (for fetching the OUI vendor list)
+reqwest = { version = "0.12", default-features = false, features = [
+    "rustls-tls",
+    "gzip",
+] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging / errors
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+thiserror = "1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
